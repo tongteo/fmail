@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email App</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <style>
+        /* Reset default styles */
+        body, h1, h2, p {
+            margin: 15;
+            padding: 5;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+
+        /* Header styles */
+        h1, h2 {
+            color: #333;
+        }
+
+        /* Form and input styles */
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        input {
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 12px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* List styles */
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+        table {
+        width: 100%;
+        border-collapse: collapse;
+        }
+
+        th, td {
+         border: 1px solid #ddd;
+         padding: 8px;
+         text-align: left;
+        }
+
+        th {
+         background-color: #f4f4f4;
+        }
+
+
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <h1>Email App</h1>
+
+    <!-- Form to add email -->
+    <div>
+        <label for="emailInput">Email:</label>
+        <input type="text" id="emailInput" v-model="newEmail">
+        <button @click="addEmail">Add Email</button>
+        <p>{{ addEmailMessage }}</p>
+    </div>
+<!-- Display email list -->
+<div>
+    <h2>Email List</h2>
+    <ul>
+        <li v-for="(email, index) in emailList" :key="index" @click="selectEmail(index)">
+            {{ index + 1 }}. {{ email }}
+        </li>
+    </ul>
+</div>
+
+<!-- Display mailbox content -->
+
+<div>
+    <h2>Mailbox Content</h2>
+<!-- Mailbox Table -->
+<table v-if="mailboxContent.inbox && mailboxContent.inbox.length">
+    <thead>
+        <tr>
+            <th>Subject</th>
+            <th>Date</th>
+            <th>From</th>
+            <th>Id</th>
+        </tr>
+    </thead>
+    <tbody>
+    <tr v-for="(email, index) in mailboxContent.inbox" :key="index" @click="selectMessage(email.id)">
+            <td>{{ email.subject }}</td>
+            <td>{{ formatDate(email.date) }}</td>
+            <td>{{ email.headerfrom }}</td>
+            <td>{{ email.id }}</td>
+        </tr>
+    </tbody>
+</table>
+    <p v-else>No emails found.</p>
+</div>
+<!-- Display message content -->
+<div>
+    <h2>Message Content</h2>
+    <!-- HTML Content -->
+    <div v-html="messageContent.html" v-if="messageContent.html"></div>
+    <p v-else>No message content.</p>
+  </div>
+</div>
+
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        newEmail: '',
+        addEmailMessage: '',
+        emailList: [],
+        selectedEmailIndex: 0,
+        mailboxContent: '',
+        selectedMessageId: '',
+        messageContent: ''
+    },
+    methods: {
+        addEmail: function() {
+        // Kiểm tra nếu newEmail không rỗng
+        if (this.newEmail.trim() !== '') {
+            // Gửi yêu cầu thêm email mới
+            fetch('http://127.0.0.1:5000/api/add_email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email: this.newEmail }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.addEmailMessage = data.message;
+                if (data.message === 'Email added successfully') {
+                    // Nếu thành công, thêm email vào danh sách và xóa trường nhập
+                    this.emailList.push(this.newEmail);
+                    this.newEmail = '';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        } else {
+            // Nếu newEmail rỗng, thông báo lỗi
+            this.addEmailMessage = 'Email cannot be empty';
+        }
+    },
+
+    formatDate: function(dateString) {
+        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        return new Date(dateString).toLocaleDateString("en-US", options);
+    },
+
+     getMailboxContent: function() {
+        // Kiểm tra xem selectedEmailIndex có giá trị hợp lệ hay không
+        if (this.selectedEmailIndex > 0 && this.selectedEmailIndex <= this.emailList.length) {
+            // Gửi yêu cầu GET để lấy nội dung hộp thư
+            fetch(`http://127.0.0.1:5000/api/get_mailbox?email_index=${this.selectedEmailIndex}`, {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hiển thị nội dung hộp thư trong trường mailboxContent
+                this.mailboxContent = data.data;
+            })
+            .catch(error => console.error('Error:', error));
+        } else {
+            // Nếu selectedEmailIndex không hợp lệ, thông báo lỗi
+            this.mailboxContent = 'Invalid email index';
+        }
+    },
+
+   getMessageContent: function() {
+        // Kiểm tra xem selectedEmailIndex và selectedMessageId có giá trị hợp lệ hay không
+        if (this.selectedEmailIndex > 0 && this.selectedEmailIndex <= this.emailList.length && this.selectedMessageId.trim() !== '') {
+            // Gửi yêu cầu GET để lấy nội dung tin nhắn
+            fetch(`http://127.0.0.1:5000/api/get_message?email_index=${this.selectedEmailIndex}&message_id=${this.selectedMessageId}`, {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hiển thị nội dung tin nhắn trong trường messageContent
+                this.messageContent = data.data.message;
+            })
+            .catch(error => console.error('Error:', error));
+        } else {
+            // Nếu selectedEmailIndex hoặc selectedMessageId không hợp lệ, thông báo lỗi
+            this.messageContent = 'Invalid email index or message ID';
+        }
+    },
+
+              selectEmail: function(index) {
+                  this.selectedEmailIndex = index + 1; // +1 because index in emailList starts from 0, but selectedEmailIndex starts from 1
+          this.getMailboxContent();
+    },
+
+    selectMessage: function(messageId) {
+        this.selectedMessageId = messageId;
+        this.getMessageContent();
+    },
+        getEmailList: function() {
+            fetch('http://127.0.0.1:5000/api/get_emails', {
+                method: 'GET',
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.emailList = data;
+            })
+            .catch(error => console.error('Error:', error));
+        },
+    },
+    mounted() {
+        this.getEmailList(); // Call the method when the Vue instance is mounted
+    }
+});
+</script>
+
+</body>
+</html>
